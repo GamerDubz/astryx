@@ -59,6 +59,7 @@ import {
 import {useIsHydrating} from '../hooks/useIsHydrating';
 import {VisuallyHidden} from '../VisuallyHidden';
 import {warnOnce} from '../utils/devWarning';
+import {FOCUSABLE_SELECTOR} from '../hooks/focusableSelector';
 import {useInteractionModalityTracking} from '../utils/interactionModality';
 import type {SizeValue} from '../utils/types';
 import {
@@ -951,9 +952,7 @@ export function Tokenizer<T extends SearchableItem>({
       if (!(target instanceof Element)) {
         return null;
       }
-      const control = target.closest<HTMLElement>(
-        'button, a[href], input, select, textarea, [tabindex]',
-      );
+      const control = target.closest<HTMLElement>(FOCUSABLE_SELECTOR);
       if (control == null || control === inputRef.current) {
         return null;
       }
@@ -1251,7 +1250,6 @@ export function Tokenizer<T extends SearchableItem>({
     (e: React.FocusEvent) => {
       if (!isFocusInTokenizer(e.relatedTarget)) {
         hasReportedFocusRef.current = false;
-        pressedTokenControlRef.current = null;
         // Focus left the field: no hand-off is owed any more.
         isFocusPendingHandOffRef.current = false;
         setIsFocusedWithin(false);
@@ -1495,6 +1493,9 @@ export function Tokenizer<T extends SearchableItem>({
   // Click wrapper to focus input
   const handleWrapperClick = useCallback(
     (event: React.MouseEvent) => {
+      // The press's click has run, so a menu opened from it has read the
+      // pressed control.
+      pressedTokenControlRef.current = null;
       // A click on a custom token's own control leaves focus on that control.
       if (findTokenControl(event.target) != null) {
         return;
