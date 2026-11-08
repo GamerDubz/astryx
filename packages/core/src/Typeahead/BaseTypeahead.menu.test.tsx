@@ -2,7 +2,7 @@
 
 /**
  * @file BaseTypeahead.menu.test.tsx
- * @input BaseTypeahead and Typeahead with a `menu` config and a handle
+ * @input BaseTypeahead, Typeahead and Tokenizer with a `menu` config and a handle
  * @output The menu's listbox and dialog roles, the handle, focus return, and role switches
  * @position Colocated verification for the BaseTypeahead menu
  */
@@ -17,6 +17,7 @@ import {
   type BaseTypeaheadMenu,
 } from './BaseTypeahead';
 import {Typeahead} from './Typeahead';
+import {Tokenizer, type TokenizerHandle} from '../Tokenizer';
 import type {SearchSource, SearchableItem} from './types';
 
 const popoverOpenState = new WeakMap<HTMLElement, boolean>();
@@ -616,6 +617,99 @@ describe('BaseTypeahead menu', () => {
         hidden: true,
       });
       expect(isLayerOpen(dialog)).toBe(true);
+    });
+
+    it('Escape returns focus to a Tokenizer token whose button opened the dialog', async () => {
+      function TokenFilters() {
+        const handleRef = useRef<TokenizerHandle>(null);
+        const [editing, setEditing] = useState<string | null>(null);
+        return (
+          <Tokenizer
+            label="Filters"
+            presentation="popover"
+            searchSource={fruits}
+            value={[{id: 'apple', label: 'Apple'}]}
+            onChange={() => {}}
+            handleRef={handleRef}
+            onOpenChange={isOpen => {
+              if (!isOpen) {
+                setEditing(null);
+              }
+            }}
+            renderToken={item => (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(item.label);
+                  handleRef.current?.open();
+                }}>
+                {`Edit ${item.label}`}
+              </button>
+            )}
+            menu={
+              editing == null
+                ? {role: 'listbox'}
+                : {
+                    role: 'dialog',
+                    label: editing,
+                    render: () => <input aria-label="Value" />,
+                  }
+            }
+          />
+        );
+      }
+      const user = userEvent.setup();
+      render(<TokenFilters />);
+      const token = screen.getByRole('button', {name: 'Edit Apple'});
+      await user.click(token);
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Apple',
+        hidden: true,
+      });
+      await waitFor(() =>
+        expect(dialog.contains(document.activeElement)).toBe(true),
+      );
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(token).toHaveFocus());
+
+      // By keyboard too.
+      await user.keyboard('{Enter}');
+      await waitFor(() =>
+        expect(
+          screen
+            .getByRole('dialog', {name: 'Apple', hidden: true})
+            .contains(document.activeElement),
+        ).toBe(true),
+      );
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(token).toHaveFocus());
+    });
+
+    it('Tokenizer forwards the menu, the handle and onOpenChange', async () => {
+      const handle = createRef<TokenizerHandle>();
+      const onOpenChange = vi.fn();
+      render(
+        <Tokenizer
+          label="Filters"
+          presentation="popover"
+          searchSource={fruits}
+          value={[]}
+          onChange={() => {}}
+          handleRef={handle}
+          onOpenChange={onOpenChange}
+          menu={{role: 'dialog', label: 'Status', render: () => <p>Panel</p>}}
+        />,
+      );
+      act(() => handle.current?.open());
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Status',
+        hidden: true,
+      });
+      expect(isLayerOpen(dialog)).toBe(true);
+      expect(onOpenChange).toHaveBeenLastCalledWith(true);
+      act(() => handle.current?.close());
+      expect(isLayerOpen(dialog)).toBe(false);
+      expect(onOpenChange).toHaveBeenLastCalledWith(false);
     });
   });
 });

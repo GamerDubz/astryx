@@ -60,7 +60,11 @@ import {useIsHydrating} from '../hooks/useIsHydrating';
 import {VisuallyHidden} from '../VisuallyHidden';
 import {warnOnce} from '../utils/devWarning';
 import type {SizeValue} from '../utils/types';
-import {BaseTypeahead} from '../Typeahead/BaseTypeahead';
+import {
+  BaseTypeahead,
+  type BaseTypeaheadHandle,
+  type BaseTypeaheadMenu,
+} from '../Typeahead/BaseTypeahead';
 import {useSize} from '../SizeContext/SizeContext';
 import {
   Field,
@@ -146,6 +150,13 @@ export interface TokenizerHandle {
   focus(): void;
   /** Blur the typeahead input. */
   blur(): void;
+  /**
+   * Open the menu (see `BaseTypeaheadHandle.open`). The sheet presentation
+   * ignores it.
+   */
+  open(): void;
+  /** Close the menu. The sheet presentation ignores it. */
+  close(): void;
 }
 
 export interface TokenizerProps<T extends SearchableItem> extends Omit<
@@ -338,8 +349,20 @@ export interface TokenizerProps<T extends SearchableItem> extends Omit<
    * sheet can present.
    */
   ref?: React.Ref<HTMLInputElement>;
-  /** Imperative handle ref for focus/blur control. */
+  /** Imperative handle ref for focus, blur, and opening the menu. */
   handleRef?: React.Ref<TokenizerHandle>;
+  /**
+   * What the menu shows: the result list, optionally with information around
+   * it, or content that takes focus. Forwarded to BaseTypeahead; see
+   * `BaseTypeaheadMenu`. The sheet presentation keeps its own sheet and
+   * ignores it.
+   */
+  menu?: BaseTypeaheadMenu;
+  /**
+   * Called when the menu opens or closes. It reports changes only; drive the
+   * menu with `handleRef`. Not called by the sheet presentation.
+   */
+  onOpenChange?: (isOpen: boolean) => void;
 }
 
 /** How Tokenizer presents its choices; see `TokenizerProps.presentation`. */
@@ -817,6 +840,8 @@ export function Tokenizer<T extends SearchableItem>({
   controlStyle,
   ref,
   handleRef,
+  menu,
+  onOpenChange,
   onKeyDown,
   presentation = 'adaptive',
   id: idProp,
@@ -899,6 +924,13 @@ export function Tokenizer<T extends SearchableItem>({
   // handing focus from one control to the other — so the receiving control
   // does not report it as focus entering from outside.
   const isHandingOffFocusRef = useRef(false);
+  // True from a press in the field until it is released. Focus that a press
+  // puts on a control (a token's own button) stays there: the person chose
+  // that control.
+  const isPressingRef = useRef(false);
+  // True from a menu close until the next focus, key or press. The menu's
+  // focus return, which follows its close, then stays on the token.
+  const isMenuFocusReturnRef = useRef(false);
   // Whether the caller has been told focus entered the field in this visit,
   // so `onBlur` is never reported without its `onFocus`: in Safari a click
   // or tap does not focus a button, so a pointer-opened sheet reports no
@@ -950,6 +982,8 @@ export function Tokenizer<T extends SearchableItem>({
           ['hasClear', hasClear || undefined],
           ['hasEntriesOnFocus', hasEntriesOnFocus || undefined],
           ['menuWidth', menuWidth],
+          ['menu', menu],
+          ['onOpenChange', onOpenChange],
           ['tokenOverflowBehavior', tokenOverflowBehavior],
           ['hasAutoFocus', hasAutoFocus || undefined],
         ] as const
@@ -1057,12 +1091,19 @@ export function Tokenizer<T extends SearchableItem>({
     handOffFocusRef,
   );
 
+  const baseHandleRef = useRef<BaseTypeaheadHandle>(null);
   useImperativeHandle(handleRef, () => ({
     focus() {
       (isSheetPresentation ? triggerRef : inputRef).current?.focus();
     },
     blur() {
       (isSheetPresentation ? triggerRef : inputRef).current?.blur();
+    },
+    open() {
+      baseHandleRef.current?.open();
+    },
+    close() {
+      baseHandleRef.current?.close();
     },
   }));
 
@@ -1142,6 +1183,27 @@ export function Tokenizer<T extends SearchableItem>({
     [layer.id],
   );
 
+  const handleMenuOpenChange = useCallback(
+    (isOpen: boolean) => {
+      if (!isOpen) {
+        isMenuFocusReturnRef.current = true;
+        const doc = wrapperRef.current?.ownerDocument ?? document;
+        const clear = () => {
+          isMenuFocusReturnRef.current = false;
+          doc.removeEventListener('focusin', clear);
+          doc.removeEventListener('keydown', clear, true);
+          doc.removeEventListener('pointerdown', clear, true);
+        };
+        // Bubble phase: the field's own focus handler reads the flag first.
+        doc.addEventListener('focusin', clear);
+        doc.addEventListener('keydown', clear, true);
+        doc.addEventListener('pointerdown', clear, true);
+      }
+      onOpenChange?.(isOpen);
+    },
+    [onOpenChange],
+  );
+
   const handleFocusCapture = useCallback(
     (e: React.FocusEvent) => {
       const comingFromOutside = !isFocusInTokenizer(e.relatedTarget);
@@ -1155,8 +1217,13 @@ export function Tokenizer<T extends SearchableItem>({
           onFocus?.(e);
         }
         // Redirect to the input so the user doesn't have to tab through
-        // every token remove button.
-        if (e.target !== inputRef.current) {
+        // every token remove button. A press, and the menu returning focus
+        // to the token that opened it, keep focus where they put it.
+        if (
+          e.target !== inputRef.current &&
+          !isPressingRef.current &&
+          !isMenuFocusReturnRef.current
+        ) {
           inputRef.current?.focus();
         }
       }
@@ -1471,6 +1538,15 @@ export function Tokenizer<T extends SearchableItem>({
       role="group"
       aria-label={label}
       onClick={handleWrapperClick}
+      onPointerDownCapture={() => {
+        isPressingRef.current = true;
+      }}
+      onPointerUpCapture={() => {
+        isPressingRef.current = false;
+      }}
+      onPointerCancelCapture={() => {
+        isPressingRef.current = false;
+      }}
       onFocusCapture={handleFocusCapture}
       onBlurCapture={handleBlurCapture}
       // Keys on the field's other controls (clear button, tokens) reach a
@@ -1577,6 +1653,9 @@ export function Tokenizer<T extends SearchableItem>({
               debounceMs={debounceMs}
               onKeyDown={handleKeyDown}
               anchorRef={wrapperRef}
+              menu={menu}
+              onOpenChange={handleMenuOpenChange}
+              handleRef={baseHandleRef}
               size={size}
               inputXStyle={[
                 isAtMax || isTruncated
