@@ -1298,6 +1298,9 @@ export function Tokenizer<T extends SearchableItem>({
         const results = await searchSource.bootstrap();
         return results.filter(item => !selectedIds.has(item.id));
       },
+      // BaseTypeahead cancels this wrapper, not the caller's source. Pass the
+      // call on, so the caller can stop its request.
+      cancel: () => searchSource.cancel?.(),
     }),
     [searchSource, selectedIds],
   );
@@ -1565,6 +1568,7 @@ export function Tokenizer<T extends SearchableItem>({
         }),
         stylex.props(
           inputWrapperStyles.base,
+          inputWrapperStyles.textField,
           styles.wrapper,
           value.length > 0 && styles.wrapperWithTokens,
           isTruncated ? truncatedSizeStyles[size] : sizeStyle,
@@ -1795,6 +1799,7 @@ export function Tokenizer<T extends SearchableItem>({
             }),
             stylex.props(
               inputWrapperStyles.base,
+              inputWrapperStyles.textField,
               styles.wrapper,
               styles.sheetField,
               isDisabled && styles.sheetFieldDisabled,
@@ -1974,6 +1979,7 @@ export function Tokenizer<T extends SearchableItem>({
             }),
             stylex.props(
               inputWrapperStyles.base,
+              inputWrapperStyles.textField,
               styles.wrapper,
               value.length > 0 && styles.wrapperWithTokens,
               placeholderSizeStyle,
