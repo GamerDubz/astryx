@@ -59,6 +59,7 @@ import {
 import {useIsHydrating} from '../hooks/useIsHydrating';
 import {VisuallyHidden} from '../VisuallyHidden';
 import {warnOnce} from '../utils/devWarning';
+import {useInteractionModalityTracking} from '../utils/interactionModality';
 import type {SizeValue} from '../utils/types';
 import {
   BaseTypeahead,
@@ -924,12 +925,11 @@ export function Tokenizer<T extends SearchableItem>({
   // handing focus from one control to the other — so the receiving control
   // does not report it as focus entering from outside.
   const isHandingOffFocusRef = useRef(false);
-  // True from a press in the field until it is released. Focus that a press
-  // puts on a control (a token's own button) stays there: the person chose
-  // that control.
-  const isPressingRef = useRef(false);
-  // True from a menu close until the next focus, key or press. The menu's
-  // focus return, which follows its close, then stays on the token.
+  // Focus a pointer puts on a control (a token's own button) stays there: the
+  // person chose that control. The shared tracker says which input moved it.
+  const {ref: modalityRef, readModality} = useInteractionModalityTracking();
+  // True while the menu returns focus after it closes. That focus stays on
+  // the token the menu returns to.
   const isMenuFocusReturnRef = useRef(false);
   // Whether the caller has been told focus entered the field in this visit,
   // so `onBlur` is never reported without its `onFocus`: in Safari a click
@@ -1051,15 +1051,17 @@ export function Tokenizer<T extends SearchableItem>({
       if (el == null) {
         return;
       }
+      const releaseModality = modalityRef(el);
       return () => {
         if (el.contains(el.ownerDocument.activeElement)) {
           isFocusPendingHandOffRef.current = true;
         }
         wrapperRef.current = null;
         tooltipAnchorRef(null);
+        releaseModality?.();
       };
     },
-    [tooltipAnchorRef],
+    [tooltipAnchorRef, modalityRef],
   );
 
   // A swap also removes `endContent` and a custom token's remove. If focus is
@@ -1183,27 +1185,6 @@ export function Tokenizer<T extends SearchableItem>({
     [layer.id],
   );
 
-  const handleMenuOpenChange = useCallback(
-    (isOpen: boolean) => {
-      if (!isOpen) {
-        isMenuFocusReturnRef.current = true;
-        const doc = wrapperRef.current?.ownerDocument ?? document;
-        const clear = () => {
-          isMenuFocusReturnRef.current = false;
-          doc.removeEventListener('focusin', clear);
-          doc.removeEventListener('keydown', clear, true);
-          doc.removeEventListener('pointerdown', clear, true);
-        };
-        // Bubble phase: the field's own focus handler reads the flag first.
-        doc.addEventListener('focusin', clear);
-        doc.addEventListener('keydown', clear, true);
-        doc.addEventListener('pointerdown', clear, true);
-      }
-      onOpenChange?.(isOpen);
-    },
-    [onOpenChange],
-  );
-
   const handleFocusCapture = useCallback(
     (e: React.FocusEvent) => {
       const comingFromOutside = !isFocusInTokenizer(e.relatedTarget);
@@ -1221,14 +1202,14 @@ export function Tokenizer<T extends SearchableItem>({
         // to the token that opened it, keep focus where they put it.
         if (
           e.target !== inputRef.current &&
-          !isPressingRef.current &&
+          readModality() !== 'pointer' &&
           !isMenuFocusReturnRef.current
         ) {
           inputRef.current?.focus();
         }
       }
     },
-    [isLayerMode, layer, isFocusInTokenizer, onFocus],
+    [isLayerMode, layer, isFocusInTokenizer, onFocus, readModality],
   );
 
   const handleBlurCapture = useCallback(
@@ -1541,15 +1522,6 @@ export function Tokenizer<T extends SearchableItem>({
       role="group"
       aria-label={label}
       onClick={handleWrapperClick}
-      onPointerDownCapture={() => {
-        isPressingRef.current = true;
-      }}
-      onPointerUpCapture={() => {
-        isPressingRef.current = false;
-      }}
-      onPointerCancelCapture={() => {
-        isPressingRef.current = false;
-      }}
       onFocusCapture={handleFocusCapture}
       onBlurCapture={handleBlurCapture}
       // Keys on the field's other controls (clear button, tokens) reach a
@@ -1658,7 +1630,8 @@ export function Tokenizer<T extends SearchableItem>({
               onKeyDown={handleKeyDown}
               anchorRef={wrapperRef}
               menu={menu}
-              onOpenChange={handleMenuOpenChange}
+              onOpenChange={onOpenChange}
+              __menuFocusReturnRef={isMenuFocusReturnRef}
               handleRef={baseHandleRef}
               size={size}
               inputXStyle={[

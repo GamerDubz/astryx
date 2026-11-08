@@ -155,7 +155,13 @@ export default function BaseTypeaheadMenu() {
           value={null}
           onChange={field => {
             if (field != null) {
-              edit({field, value: field.values[0]});
+              // A field that already has a filter opens on its applied value.
+              edit(
+                filters.find(filter => filter.field.id === field.id) ?? {
+                  field,
+                  value: field.values[0],
+                },
+              );
             }
           }}
           onOpenChange={isOpen => {

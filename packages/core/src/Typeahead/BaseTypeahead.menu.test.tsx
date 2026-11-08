@@ -685,6 +685,30 @@ describe('BaseTypeahead menu', () => {
       await waitFor(() => expect(token).toHaveFocus());
     });
 
+    it('a press on a token released outside the field still lets Tab land on the input', async () => {
+      const user = userEvent.setup();
+      render(
+        <>
+          <button type="button">Before</button>
+          <Tokenizer
+            label="Filters"
+            presentation="popover"
+            searchSource={fruits}
+            value={[{id: 'apple', label: 'Apple'}]}
+            onChange={() => {}}
+          />
+        </>,
+      );
+      const remove = screen.getByRole('button', {name: /remove apple/i});
+      // A press that starts on the token's control and is called off by
+      // releasing it outside the field.
+      fireEvent.pointerDown(remove);
+      fireEvent.pointerUp(document.body);
+      screen.getByRole('button', {name: 'Before'}).focus();
+      await user.tab();
+      expect(screen.getByRole('combobox', {name: 'Filters'})).toHaveFocus();
+    });
+
     it('Tokenizer forwards the menu, the handle and onOpenChange', async () => {
       const handle = createRef<TokenizerHandle>();
       const onOpenChange = vi.fn();
