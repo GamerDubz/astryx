@@ -290,6 +290,15 @@ export interface BaseTypeaheadProps<T extends SearchableItem> extends Omit<
   __queryEntries?: (query: string, results: T[]) => T[];
 
   /**
+   * Set to `true` while a dialog-role menu's close returns focus, and back to
+   * `false` once that focus has landed. Tokenizer reads it to keep focus on the
+   * token the menu returns to.
+   *
+   * @internal
+   */
+  __menuFocusReturnRef?: RefObject<boolean>;
+
+  /**
    * Debounce delay in ms before triggering search after typing.
    * Set to 0 for synchronous/local search sources that don't need debouncing.
    * @default 150
@@ -620,6 +629,7 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
   menu,
   handleRef,
   __queryEntries,
+  __menuFocusReturnRef,
   inputId: externalInputId,
   ariaDescribedBy,
   ariaLabelledBy,
@@ -965,14 +975,23 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
   // True while the dialog's close moves focus back to the input. That focus
   // does not open the list, as a pick's own focus return does not.
   const isDialogFocusReturnRef = useRef(false);
-  const restoreFocusTo = useCallback((element: HTMLElement) => {
-    isDialogFocusReturnRef.current = element === inputRef.current;
-    try {
-      element.focus();
-    } finally {
-      isDialogFocusReturnRef.current = false;
-    }
-  }, []);
+  const restoreFocusTo = useCallback(
+    (element: HTMLElement) => {
+      isDialogFocusReturnRef.current = element === inputRef.current;
+      if (__menuFocusReturnRef != null) {
+        __menuFocusReturnRef.current = true;
+      }
+      try {
+        element.focus();
+      } finally {
+        isDialogFocusReturnRef.current = false;
+        if (__menuFocusReturnRef != null) {
+          __menuFocusReturnRef.current = false;
+        }
+      }
+    },
+    [__menuFocusReturnRef],
+  );
   // The element focused when the handle's `open()` ran. The open runs after
   // the commit, and a click's own handlers can move focus before it (a token
   // button inside the field), so the menu returns focus here. It holds until
