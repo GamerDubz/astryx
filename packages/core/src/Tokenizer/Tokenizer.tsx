@@ -931,6 +931,41 @@ export function Tokenizer<T extends SearchableItem>({
   // True while the menu returns focus after it closes. That focus stays on
   // the token the menu returns to.
   const isMenuFocusReturnRef = useRef(false);
+  // The custom tokens' slots, and the control in one that a press last landed
+  // on. In Safari a click does not focus a button, so the menu's `open()`
+  // reads the pressed control as its opener rather than the focused element.
+  const tokenSlotsRef = useRef(new Set<HTMLElement>());
+  const pressedTokenControlRef = useRef<HTMLElement | null>(null);
+  const registerTokenSlot = useCallback((slot: HTMLElement | null) => {
+    if (slot == null) {
+      return undefined;
+    }
+    tokenSlotsRef.current.add(slot);
+    return () => {
+      tokenSlotsRef.current.delete(slot);
+    };
+  }, []);
+  // The focusable control inside a custom token that `target` sits in, if any.
+  const findTokenControl = useCallback(
+    (target: EventTarget | null): HTMLElement | null => {
+      if (!(target instanceof Element)) {
+        return null;
+      }
+      const control = target.closest<HTMLElement>(
+        'button, a[href], input, select, textarea, [tabindex]',
+      );
+      if (control == null || control === inputRef.current) {
+        return null;
+      }
+      for (const slot of tokenSlotsRef.current) {
+        if (slot.contains(control)) {
+          return control;
+        }
+      }
+      return null;
+    },
+    [],
+  );
   // Whether the caller has been told focus entered the field in this visit,
   // so `onBlur` is never reported without its `onFocus`: in Safari a click
   // or tap does not focus a button, so a pointer-opened sheet reports no
@@ -1216,6 +1251,7 @@ export function Tokenizer<T extends SearchableItem>({
     (e: React.FocusEvent) => {
       if (!isFocusInTokenizer(e.relatedTarget)) {
         hasReportedFocusRef.current = false;
+        pressedTokenControlRef.current = null;
         // Focus left the field: no hand-off is owed any more.
         isFocusPendingHandOffRef.current = false;
         setIsFocusedWithin(false);
@@ -1457,20 +1493,27 @@ export function Tokenizer<T extends SearchableItem>({
   );
 
   // Click wrapper to focus input
-  const handleWrapperClick = useCallback(() => {
-    if (!isDisabled) {
-      if (isLayerMode) {
-        // The input always lives in the popover. Show it and focus.
-        layer.show();
-        setIsFocusedWithin(true);
-        // The input is already mounted in the popover (not conditional),
-        // so we can focus it directly.
-        inputRef.current?.focus();
-      } else {
-        inputRef.current?.focus();
+  const handleWrapperClick = useCallback(
+    (event: React.MouseEvent) => {
+      // A click on a custom token's own control leaves focus on that control.
+      if (findTokenControl(event.target) != null) {
+        return;
       }
-    }
-  }, [isDisabled, isLayerMode, layer]);
+      if (!isDisabled) {
+        if (isLayerMode) {
+          // The input always lives in the popover. Show it and focus.
+          layer.show();
+          setIsFocusedWithin(true);
+          // The input is already mounted in the popover (not conditional),
+          // so we can focus it directly.
+          inputRef.current?.focus();
+        } else {
+          inputRef.current?.focus();
+        }
+      }
+    },
+    [isDisabled, isLayerMode, layer, findTokenControl],
+  );
 
   const ariaDescribedBy =
     [
@@ -1489,7 +1532,10 @@ export function Tokenizer<T extends SearchableItem>({
 
     if (renderToken) {
       return (
-        <span key={item.id} {...stylex.props(styles.token)}>
+        <span
+          key={item.id}
+          ref={registerTokenSlot}
+          {...stylex.props(styles.token)}>
           {renderToken(item, onRemoveItem)}
         </span>
       );
@@ -1522,6 +1568,12 @@ export function Tokenizer<T extends SearchableItem>({
       role="group"
       aria-label={label}
       onClick={handleWrapperClick}
+      onPointerDownCapture={event => {
+        pressedTokenControlRef.current = findTokenControl(event.target);
+      }}
+      onKeyDownCapture={() => {
+        pressedTokenControlRef.current = null;
+      }}
       onFocusCapture={handleFocusCapture}
       onBlurCapture={handleBlurCapture}
       // Keys on the field's other controls (clear button, tokens) reach a
@@ -1632,6 +1684,7 @@ export function Tokenizer<T extends SearchableItem>({
               menu={menu}
               onOpenChange={onOpenChange}
               __menuFocusReturnRef={isMenuFocusReturnRef}
+              __pressedOpenerRef={pressedTokenControlRef}
               handleRef={baseHandleRef}
               size={size}
               inputXStyle={[
