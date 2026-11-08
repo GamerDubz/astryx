@@ -196,6 +196,19 @@ const config: StorybookConfig = {
             lightningcssOptions: {
               targets: lightningcssTargets,
             },
+            // The files the babel wrapper compiles with the library class
+            // prefix. CLI templates render here from source and land in the
+            // library layer (`libraryPattern` below), so they take the library
+            // prefix too. With the product prefix, a story's identical atomic
+            // class in the later product layer would override a template's
+            // conditional rule, such as a focus ring.
+            libraryPatterns: [
+              'packages/core/',
+              'packages/themes/',
+              'packages/lab/',
+              'packages/cli/assets/templates/',
+              'node_modules/@astryxdesign/',
+            ],
           },
           libraryPattern: 'packages/',
         }),

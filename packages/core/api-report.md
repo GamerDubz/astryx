@@ -107,6 +107,7 @@ component Banner(props: BannerProps)
   inherits AriaAttributes, DOMAttributes, HTMLAttributes
 component BaseTypeahead(props: BaseTypeaheadProps)
   prop __menuFocusReturnRef?: RefObject<boolean> @internal
+  prop __pressedOpenerRef?: RefObject<HTMLElement | null> @internal
   prop __queryEntries?: (query: string, results: T[]) => T[] @internal
   prop anchorRef?: RefObject<HTMLElement | null>
   prop ariaDescribedBy?: string

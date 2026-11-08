@@ -299,6 +299,16 @@ export interface BaseTypeaheadProps<T extends SearchableItem> extends Omit<
   __menuFocusReturnRef?: RefObject<boolean>;
 
   /**
+   * The control a press inside the field last landed on, which `open()`
+   * records as the menu's opener even when the press did not focus it (a
+   * click does not focus a button in Safari). `open()` reads it once and
+   * clears it.
+   *
+   * @internal
+   */
+  __pressedOpenerRef?: RefObject<HTMLElement | null>;
+
+  /**
    * Debounce delay in ms before triggering search after typing.
    * Set to 0 for synchronous/local search sources that don't need debouncing.
    * @default 150
@@ -630,6 +640,7 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
   handleRef,
   __queryEntries,
   __menuFocusReturnRef,
+  __pressedOpenerRef,
   inputId: externalInputId,
   ariaDescribedBy,
   ariaLabelledBy,
@@ -1855,19 +1866,25 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
     () => ({
       open() {
         openRequestedRef.current = true;
+        const pressed = __pressedOpenerRef?.current;
+        if (__pressedOpenerRef != null) {
+          __pressedOpenerRef.current = null;
+        }
         const active = inputRef.current?.ownerDocument.activeElement;
         openerAtRequestRef.current =
-          active instanceof HTMLElement &&
-          findMenuLayer(inputRef.current)?.contains(active) !== true
-            ? active
-            : null;
+          pressed?.isConnected === true
+            ? pressed
+            : active instanceof HTMLElement &&
+                findMenuLayer(inputRef.current)?.contains(active) !== true
+              ? active
+              : null;
         setOpenRequest(request => request + 1);
       },
       close() {
         popover.hide();
       },
     }),
-    [popover],
+    [popover, __pressedOpenerRef],
   );
 
   const handledOpenRequestRef = useRef(openRequest);

@@ -685,6 +685,84 @@ describe('BaseTypeahead menu', () => {
       await waitFor(() => expect(token).toHaveFocus());
     });
 
+    it('Escape returns focus to a token whose click did not focus it, as in Safari', async () => {
+      function TokenFilters() {
+        const handleRef = useRef<TokenizerHandle>(null);
+        const [editing, setEditing] = useState<string | null>(null);
+        return (
+          <Tokenizer
+            label="Filters"
+            presentation="popover"
+            searchSource={fruits}
+            value={[{id: 'apple', label: 'Apple'}]}
+            onChange={() => {}}
+            handleRef={handleRef}
+            onOpenChange={isOpen => {
+              if (!isOpen) {
+                setEditing(null);
+              }
+            }}
+            renderToken={item => (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(item.label);
+                  handleRef.current?.open();
+                }}>
+                {`Edit ${item.label}`}
+              </button>
+            )}
+            menu={
+              editing == null
+                ? {role: 'listbox'}
+                : {
+                    role: 'dialog',
+                    label: editing,
+                    render: () => <input aria-label="Value" />,
+                  }
+            }
+          />
+        );
+      }
+      render(<TokenFilters />);
+      const token = screen.getByRole('button', {name: 'Edit Apple'});
+      // A press and click that leave focus where it was, as Safari does for
+      // a button.
+      fireEvent.pointerDown(token);
+      fireEvent.pointerUp(token);
+      fireEvent.click(token);
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Apple',
+        hidden: true,
+      });
+      await waitFor(() =>
+        expect(dialog.contains(document.activeElement)).toBe(true),
+      );
+      fireEvent.keyDown(document.activeElement ?? document.body, {
+        key: 'Escape',
+      });
+      await waitFor(() => expect(token).toHaveFocus());
+    });
+
+    it("a click on a custom token's own control leaves focus on it", async () => {
+      const user = userEvent.setup();
+      render(
+        <Tokenizer
+          label="Filters"
+          presentation="popover"
+          searchSource={fruits}
+          value={[{id: 'apple', label: 'Apple'}]}
+          onChange={() => {}}
+          renderToken={item => (
+            <button type="button">{`Details ${item.label}`}</button>
+          )}
+        />,
+      );
+      const details = screen.getByRole('button', {name: 'Details Apple'});
+      await user.click(details);
+      expect(details).toHaveFocus();
+    });
+
     it('a press on a token released outside the field still lets Tab land on the input', async () => {
       const user = userEvent.setup();
       render(
