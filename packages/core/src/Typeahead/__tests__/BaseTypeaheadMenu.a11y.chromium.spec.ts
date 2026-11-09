@@ -13,7 +13,12 @@
  *   changes. jsdom has no top layer and no real focus movement on close.
  */
 
-import {expect, test, type Page} from '@astryxdesign/a11y-spec/playwright';
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+} from '@astryxdesign/a11y-spec/playwright';
 import {
   DEFAULT_STORYBOOK_DIR,
   serveStorybook,
@@ -53,26 +58,40 @@ test('the field draws its focus ring when the input has keyboard focus', async (
   expect(ring.width).toBeGreaterThanOrEqual(2);
 });
 
+/** The text of the option the field marks active, or null. */
+async function activeOption(page: Page) {
+  return page.evaluate(() => {
+    const field = document.querySelector('[role="combobox"]');
+    const id = field?.getAttribute('aria-activedescendant');
+    return id == null ? null : document.getElementById(id)?.textContent;
+  });
+}
+
+/**
+ * Opens the field's list and waits until it marks an active option. The list
+ * loads its entries after the click; Enter and the arrow keys act on the
+ * active option, so a key pressed before it exists does nothing, as it does
+ * for a person.
+ */
+async function openList(page: Page, input: Locator) {
+  await input.click();
+  await expect(page.getByRole('option', {name: /Status/})).toBeVisible();
+  await expect.poll(() => activeOption(page)).toContain('Status');
+}
+
 test('the arrow keys move through the options, with information around the list', async ({
   page,
 }) => {
   const input = await openStory(page);
-  await input.click();
+  await openList(page, input);
   await expect(page.getByRole('listbox')).toBeVisible();
   await expect(page.getByText('Filter by')).toBeVisible();
   await expect(page.getByText('Arrow keys move, Enter picks')).toBeVisible();
 
-  const active = async () =>
-    page.evaluate(() => {
-      const field = document.querySelector('[role="combobox"]');
-      const id = field?.getAttribute('aria-activedescendant');
-      return id == null ? null : document.getElementById(id)?.textContent;
-    });
-  await expect.poll(active).toContain('Status');
   await input.press('ArrowDown');
-  await expect.poll(active).toContain('Priority');
+  await expect.poll(() => activeOption(page)).toContain('Priority');
   await input.press('ArrowDown');
-  await expect.poll(active).toContain('Owner');
+  await expect.poll(() => activeOption(page)).toContain('Owner');
   // Focus never left the input.
   await expect(input).toBeFocused();
 });
@@ -81,8 +100,9 @@ test('a pick switches the open layer to a named dialog that takes focus', async 
   page,
 }) => {
   const input = await openStory(page);
-  await input.click();
+  await openList(page, input);
   await input.press('ArrowDown');
+  await expect.poll(() => activeOption(page)).toContain('Priority');
   // The menu's layer: the open popover that holds the result list.
   const layer = page.locator('[popover]:popover-open:has([role="listbox"])');
   await expect(layer).toHaveCount(1);
@@ -104,10 +124,7 @@ test('Escape returns focus to the filter button that opened the dialog', async (
   page,
 }) => {
   const input = await openStory(page);
-  await input.click();
-  // Enter picks the active option, so wait for the list to mark one.
-  await expect(page.getByRole('option', {name: /Status/})).toBeVisible();
-  await expect(input).toHaveAttribute('aria-activedescendant', /.+/);
+  await openList(page, input);
   await input.press('Enter');
   await page
     .getByRole('dialog', {name: 'Status filter'})
@@ -131,7 +148,7 @@ test('a press outside the field and the dialog closes the dialog', async ({
   page,
 }) => {
   const input = await openStory(page);
-  await input.click();
+  await openList(page, input);
   await input.press('Enter');
   const dialog = page.getByRole('dialog', {name: 'Status filter'});
   await expect(dialog).toBeVisible();
