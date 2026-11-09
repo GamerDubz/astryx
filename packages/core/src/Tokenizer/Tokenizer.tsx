@@ -932,9 +932,9 @@ export function Tokenizer<T extends SearchableItem>({
   // True while the menu returns focus after it closes. That focus stays on
   // the token the menu returns to.
   const isMenuFocusReturnRef = useRef(false);
-  // The custom tokens' slots, and the control in one that a press last landed
-  // on. In Safari a click does not focus a button, so the menu's `open()`
-  // reads the pressed control as its opener rather than the focused element.
+  // The custom tokens' slots, and the control in one that the current click
+  // activates. In Safari a click does not focus a button, so the menu's
+  // `open()` reads that control as its opener rather than the focused element.
   const tokenSlotsRef = useRef(new Set<HTMLElement>());
   const pressedTokenControlRef = useRef<HTMLElement | null>(null);
   const registerTokenSlot = useCallback((slot: HTMLElement | null) => {
@@ -1493,8 +1493,7 @@ export function Tokenizer<T extends SearchableItem>({
   // Click wrapper to focus input
   const handleWrapperClick = useCallback(
     (event: React.MouseEvent) => {
-      // The press's click has run, so a menu opened from it has read the
-      // pressed control.
+      // The click has run, so a menu opened from it has read the control.
       pressedTokenControlRef.current = null;
       // A click on a custom token's own control leaves focus on that control.
       if (findTokenControl(event.target) != null) {
@@ -1569,11 +1568,11 @@ export function Tokenizer<T extends SearchableItem>({
       role="group"
       aria-label={label}
       onClick={handleWrapperClick}
-      onPointerDownCapture={event => {
+      // The control a click activates is recorded while the click passes
+      // down through the field, before the token's own handler runs, and
+      // cleared when the click bubbles back (handleWrapperClick).
+      onClickCapture={event => {
         pressedTokenControlRef.current = findTokenControl(event.target);
-      }}
-      onKeyDownCapture={() => {
-        pressedTokenControlRef.current = null;
       }}
       onFocusCapture={handleFocusCapture}
       onBlurCapture={handleBlurCapture}
