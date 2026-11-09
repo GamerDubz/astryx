@@ -1569,10 +1569,19 @@ export function Tokenizer<T extends SearchableItem>({
       aria-label={label}
       onClick={handleWrapperClick}
       // The control a click activates is recorded while the click passes
-      // down through the field, before the token's own handler runs, and
-      // cleared when the click bubbles back (handleWrapperClick).
+      // down through the field, before the token's own handler runs. The
+      // record ends with the click's task, also when the token's handler
+      // stops the click from bubbling back.
       onClickCapture={event => {
-        pressedTokenControlRef.current = findTokenControl(event.target);
+        const control = findTokenControl(event.target);
+        pressedTokenControlRef.current = control;
+        if (control != null) {
+          setTimeout(() => {
+            if (pressedTokenControlRef.current === control) {
+              pressedTokenControlRef.current = null;
+            }
+          }, 0);
+        }
       }}
       onFocusCapture={handleFocusCapture}
       onBlurCapture={handleBlurCapture}
