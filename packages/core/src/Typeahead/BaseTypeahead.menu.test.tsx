@@ -620,11 +620,12 @@ describe('BaseTypeahead menu', () => {
     });
 
     it.each([
-      ['Escape', false],
-      ['close()', true],
-    ])(
+      ['Escape', 'escape'],
+      ['close()', 'close'],
+      ['close() after an awaited save', 'save'],
+    ] as const)(
       'closing a dialog a pick opened in a Typeahead with a value returns focus to the token, with %s',
-      async (_, closesFromInside) => {
+      async (_, closeBy) => {
         function FruitField() {
           const handleRef = useRef<BaseTypeaheadHandle>(null);
           const [value, setValue] = useState<SearchableItem | null>({
@@ -656,7 +657,17 @@ describe('BaseTypeahead menu', () => {
                       role: 'dialog',
                       label: field,
                       render: ({close}) => (
-                        <button type="button" onClick={close}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (closeBy === 'save') {
+                              void new Promise(resolve =>
+                                setTimeout(resolve, 50),
+                              ).then(close);
+                            } else {
+                              close();
+                            }
+                          }}>
                           Done
                         </button>
                       ),
@@ -680,7 +691,11 @@ describe('BaseTypeahead menu', () => {
           hidden: true,
         });
         await waitFor(() => expect(isLayerOpen(dialog)).toBe(true));
-        if (closesFromInside) {
+        // The hidden input never takes focus on the way back: a screen reader
+        // would announce a control the person cannot see.
+        const inputFocus = vi.fn();
+        input.addEventListener('focus', inputFocus);
+        if (closeBy !== 'escape') {
           await user.click(
             screen.getByRole('button', {name: 'Done', hidden: true}),
           );
@@ -696,6 +711,8 @@ describe('BaseTypeahead menu', () => {
           expect(active?.closest('[class]')?.textContent).toContain('Apricot');
           expect(active?.tagName).toBe('BUTTON');
         });
+        expect(inputFocus).not.toHaveBeenCalled();
+        input.removeEventListener('focus', inputFocus);
       },
     );
 
