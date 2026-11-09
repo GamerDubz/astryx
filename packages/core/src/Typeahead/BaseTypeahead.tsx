@@ -21,6 +21,7 @@
  */
 
 import React, {
+  use,
   useCallback,
   useEffect,
   useId,
@@ -33,6 +34,7 @@ import React, {
   type RefObject,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
+import {BaseTypeaheadFocusContext} from './BaseTypeaheadFocusContext';
 import {useBusyIndicatorLane} from './busyIndicatorLane';
 import {useTrailingKeyDown} from './trailingKeyDown';
 import {useCommittedChoices} from './committedChoicesKey';
@@ -288,25 +290,6 @@ export interface BaseTypeaheadProps<T extends SearchableItem> extends Omit<
    * @internal
    */
   __queryEntries?: (query: string, results: T[]) => T[];
-
-  /**
-   * Set to `true` while a dialog-role menu's close returns focus, and back to
-   * `false` once that focus has landed. Tokenizer reads it to keep focus on the
-   * token the menu returns to.
-   *
-   * @internal
-   */
-  __menuFocusReturnRef?: RefObject<boolean>;
-
-  /**
-   * The control a press inside the field last landed on, which `open()`
-   * records as the menu's opener even when the press did not focus it (a
-   * click does not focus a button in Safari). `open()` reads it once and
-   * clears it.
-   *
-   * @internal
-   */
-  __pressedOpenerRef?: RefObject<HTMLElement | null>;
 
   /**
    * Debounce delay in ms before triggering search after typing.
@@ -639,8 +622,6 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
   menu,
   handleRef,
   __queryEntries,
-  __menuFocusReturnRef,
-  __pressedOpenerRef,
   inputId: externalInputId,
   ariaDescribedBy,
   ariaLabelledBy,
@@ -664,6 +645,11 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
   ref,
   ...rest
 }: BaseTypeaheadProps<T>) {
+  // A composing field's focus wiring is for this typeahead only; a typeahead
+  // inside its menu gets none.
+  const focusWiring = use(BaseTypeaheadFocusContext);
+  const menuFocusReturnRef = focusWiring?.menuFocusReturn;
+  const pressedOpenerRef = focusWiring?.pressedOpener;
   const t = useComponentTranslator();
   const placeholder =
     placeholderFromProps ?? t('@astryx.typeahead.searchPlaceholder');
@@ -989,19 +975,19 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
   const restoreFocusTo = useCallback(
     (element: HTMLElement) => {
       isDialogFocusReturnRef.current = element === inputRef.current;
-      if (__menuFocusReturnRef != null) {
-        __menuFocusReturnRef.current = true;
+      if (menuFocusReturnRef != null) {
+        menuFocusReturnRef.current = true;
       }
       try {
         element.focus();
       } finally {
         isDialogFocusReturnRef.current = false;
-        if (__menuFocusReturnRef != null) {
-          __menuFocusReturnRef.current = false;
+        if (menuFocusReturnRef != null) {
+          menuFocusReturnRef.current = false;
         }
       }
     },
-    [__menuFocusReturnRef],
+    [menuFocusReturnRef],
   );
   // The element focused when the handle's `open()` ran. The open runs after
   // the commit, and a click's own handlers can move focus before it (a token
@@ -1866,9 +1852,9 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
     () => ({
       open() {
         openRequestedRef.current = true;
-        const pressed = __pressedOpenerRef?.current;
-        if (__pressedOpenerRef != null) {
-          __pressedOpenerRef.current = null;
+        const pressed = pressedOpenerRef?.current;
+        if (pressedOpenerRef != null) {
+          pressedOpenerRef.current = null;
         }
         const active = inputRef.current?.ownerDocument.activeElement;
         openerAtRequestRef.current =
@@ -1884,7 +1870,7 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
         popover.hide();
       },
     }),
-    [popover, __pressedOpenerRef],
+    [popover, pressedOpenerRef],
   );
 
   const handledOpenRequestRef = useRef(openRequest);
@@ -2116,7 +2102,7 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
     });
   }
 
-  return (
+  const content = (
     <>
       <input
         {...rest}
@@ -2224,6 +2210,13 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
         ],
       })}
     </>
+  );
+  return focusWiring == null ? (
+    content
+  ) : (
+    <BaseTypeaheadFocusContext value={null}>
+      {content}
+    </BaseTypeaheadFocusContext>
   );
 } as <T extends SearchableItem>(
   props: BaseTypeaheadProps<T>,
