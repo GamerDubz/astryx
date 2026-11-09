@@ -972,14 +972,20 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
   // True while the dialog's close moves focus back to the input. That focus
   // does not open the list, as a pick's own focus return does not.
   const isDialogFocusReturnRef = useRef(false);
+  // Every dialog close returns focus here. When the field hides its input,
+  // the field's stand-in (Typeahead's token) takes the focus instead.
   const restoreFocusTo = useCallback(
     (element: HTMLElement) => {
-      isDialogFocusReturnRef.current = element === inputRef.current;
+      const target =
+        element === inputRef.current
+          ? (focusWiring?.inputReturnTarget?.() ?? element)
+          : element;
+      isDialogFocusReturnRef.current = target === inputRef.current;
       if (menuFocusReturnRef != null) {
         menuFocusReturnRef.current = true;
       }
       try {
-        element.focus();
+        target.focus();
       } finally {
         isDialogFocusReturnRef.current = false;
         if (menuFocusReturnRef != null) {
@@ -987,7 +993,7 @@ export const BaseTypeahead = function BaseTypeahead<T extends SearchableItem>({
         }
       }
     },
-    [menuFocusReturnRef],
+    [focusWiring, menuFocusReturnRef],
   );
   // The element focused when the handle's `open()` ran. The open runs after
   // the commit, and a click's own handlers can move focus before it (a token
