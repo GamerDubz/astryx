@@ -820,6 +820,75 @@ describe('BaseTypeahead menu', () => {
       await waitFor(() => expect(outside).toHaveFocus());
     });
 
+    it('a token click that stops propagation records no opener for a later dialog', async () => {
+      function TokenFilters() {
+        const handleRef = useRef<TokenizerHandle>(null);
+        const [editing, setEditing] = useState<string | null>(null);
+        return (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing('Apple');
+                handleRef.current?.open();
+              }}>
+              Open from outside
+            </button>
+            <Tokenizer
+              label="Filters"
+              presentation="popover"
+              searchSource={fruits}
+              value={[{id: 'apple', label: 'Apple'}]}
+              onChange={() => {}}
+              handleRef={handleRef}
+              onOpenChange={isOpen => {
+                if (!isOpen) {
+                  setEditing(null);
+                }
+              }}
+              renderToken={item => (
+                <button
+                  type="button"
+                  onClick={event => event.stopPropagation()}>
+                  {`Edit ${item.label}`}
+                </button>
+              )}
+              menu={
+                editing == null
+                  ? {role: 'listbox'}
+                  : {
+                      role: 'dialog',
+                      label: editing,
+                      render: () => <input aria-label="Value" />,
+                    }
+              }
+            />
+          </>
+        );
+      }
+      render(<TokenFilters />);
+      const token = screen.getByRole('button', {name: 'Edit Apple'});
+      const outside = screen.getByRole('button', {name: 'Open from outside'});
+      // The token's click stops before it bubbles back to the field.
+      fireEvent.click(token);
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+      act(() => outside.focus());
+      fireEvent.click(outside);
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Apple',
+        hidden: true,
+      });
+      await waitFor(() =>
+        expect(dialog.contains(document.activeElement)).toBe(true),
+      );
+      fireEvent.keyDown(document.activeElement ?? document.body, {
+        key: 'Escape',
+      });
+      await waitFor(() => expect(outside).toHaveFocus());
+    });
+
     it("a click on a custom token's own control leaves focus on it", async () => {
       const user = userEvent.setup();
       render(
