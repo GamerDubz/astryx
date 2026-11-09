@@ -34,6 +34,7 @@ import React, {
   type RefObject,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
+import {BaseTypeaheadFocusContext} from '../Typeahead/BaseTypeaheadFocusContext';
 import {
   BusyIndicatorLaneProvider,
   createBusyIndicatorLane,
@@ -937,6 +938,13 @@ export function Tokenizer<T extends SearchableItem>({
   // `open()` reads that control as its opener rather than the focused element.
   const tokenSlotsRef = useRef(new Set<HTMLElement>());
   const pressedTokenControlRef = useRef<HTMLElement | null>(null);
+  const baseTypeaheadFocus = useMemo(
+    () => ({
+      menuFocusReturn: isMenuFocusReturnRef,
+      pressedOpener: pressedTokenControlRef,
+    }),
+    [],
+  );
   const registerTokenSlot = useCallback((slot: HTMLElement | null) => {
     if (slot == null) {
       return undefined;
@@ -1641,73 +1649,73 @@ export function Tokenizer<T extends SearchableItem>({
       <BusyIndicatorLaneProvider value={busyLane}>
         <TrailingKeyDownContext value={onKeyDown}>
           <CommittedChoicesKeyContext value={committedChoices}>
-            <BaseTypeahead
-              {...rest}
-              ref={useMergedRefs(
-                inputRef,
-                // The ref type admits the sheet's trigger too; in this
-                // presentation it receives the input.
-                ref as React.Ref<HTMLInputElement> | undefined,
-                handOffFocusRef,
-              )}
-              searchSource={isAtMax ? emptySource : filteredSource}
-              value={null}
-              onChange={handleAdd}
-              renderItem={renderItem}
-              // A space keeps :placeholder-shown available as the CSS-only empty
-              // query signal without painting placeholder text beside tokens.
-              placeholder={value.length === 0 ? placeholder : ' '}
-              hasEntriesOnFocus={isAtMax ? false : hasEntriesOnFocus}
-              maxMenuItems={maxMenuItems}
-              menuWidth={menuWidth}
-              minQueryLength={minQueryLength}
-              emptySearchText={emptySearchText}
-              isDisabled={isDisabled}
-              // A disabled field keeps its tab stop (spec:AST-085 FR1), except in
-              // unfocusedLayer mode, where the input lives in a layer a disabled
-              // field never opens; how that field takes focus is undecided.
-              isFocusableDisabled={
-                showsDisabledMessage || (isDisabled && !isLayerMode)
-              }
-              hasAutoFocus={hasAutoFocus}
-              inputId={inputId}
-              ariaLabelledBy={fieldLabelledBy}
-              ariaDescribedBy={
-                [ariaDescribedByProp, ariaDescribedBy]
-                  .filter(Boolean)
-                  .join(' ') || undefined
-              }
-              onChangeQuery={onChangeQuery}
-              // The resolved required state reaches the combobox, also when a
-              // FormLayout default hides the visible marker (component:FormLayout
-              // FR5, AR2).
-              aria-required={isEffectivelyRequired || rest['aria-required']}
-              // An error status is exposed on the combobox as on every other field
-              // (WCAG 4.1.2; spec:AST-020 FR9). Without one, a caller's own
-              // aria-required / aria-invalid still applies.
-              aria-invalid={status?.type === 'error' || rest['aria-invalid']}
-              __queryEntries={createEntries}
-              debounceMs={debounceMs}
-              onKeyDown={handleKeyDown}
-              anchorRef={wrapperRef}
-              menu={menu}
-              onOpenChange={onOpenChange}
-              __menuFocusReturnRef={isMenuFocusReturnRef}
-              __pressedOpenerRef={pressedTokenControlRef}
-              handleRef={baseHandleRef}
-              size={size}
-              inputXStyle={[
-                isAtMax || isTruncated
-                  ? styles.inputAtMax
-                  : value.length > 0
-                    ? styles.inputCompact
-                    : undefined,
-                // With tokens, wrapperWithTokens reserves the lane for every row.
-                // This rule is only for an empty Tokenizer; it still resolves to
-                // zero until the lane publishes a width.
-                !(isAtMax || isTruncated || value.length > 0) && laneReserve,
-              ]}
-            />
+            <BaseTypeaheadFocusContext value={baseTypeaheadFocus}>
+              <BaseTypeahead
+                {...rest}
+                ref={useMergedRefs(
+                  inputRef,
+                  // The ref type admits the sheet's trigger too; in this
+                  // presentation it receives the input.
+                  ref as React.Ref<HTMLInputElement> | undefined,
+                  handOffFocusRef,
+                )}
+                searchSource={isAtMax ? emptySource : filteredSource}
+                value={null}
+                onChange={handleAdd}
+                renderItem={renderItem}
+                // A space keeps :placeholder-shown available as the CSS-only empty
+                // query signal without painting placeholder text beside tokens.
+                placeholder={value.length === 0 ? placeholder : ' '}
+                hasEntriesOnFocus={isAtMax ? false : hasEntriesOnFocus}
+                maxMenuItems={maxMenuItems}
+                menuWidth={menuWidth}
+                minQueryLength={minQueryLength}
+                emptySearchText={emptySearchText}
+                isDisabled={isDisabled}
+                // A disabled field keeps its tab stop (spec:AST-085 FR1), except in
+                // unfocusedLayer mode, where the input lives in a layer a disabled
+                // field never opens; how that field takes focus is undecided.
+                isFocusableDisabled={
+                  showsDisabledMessage || (isDisabled && !isLayerMode)
+                }
+                hasAutoFocus={hasAutoFocus}
+                inputId={inputId}
+                ariaLabelledBy={fieldLabelledBy}
+                ariaDescribedBy={
+                  [ariaDescribedByProp, ariaDescribedBy]
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
+                onChangeQuery={onChangeQuery}
+                // The resolved required state reaches the combobox, also when a
+                // FormLayout default hides the visible marker (component:FormLayout
+                // FR5, AR2).
+                aria-required={isEffectivelyRequired || rest['aria-required']}
+                // An error status is exposed on the combobox as on every other field
+                // (WCAG 4.1.2; spec:AST-020 FR9). Without one, a caller's own
+                // aria-required / aria-invalid still applies.
+                aria-invalid={status?.type === 'error' || rest['aria-invalid']}
+                __queryEntries={createEntries}
+                debounceMs={debounceMs}
+                onKeyDown={handleKeyDown}
+                anchorRef={wrapperRef}
+                menu={menu}
+                onOpenChange={onOpenChange}
+                handleRef={baseHandleRef}
+                size={size}
+                inputXStyle={[
+                  isAtMax || isTruncated
+                    ? styles.inputAtMax
+                    : value.length > 0
+                      ? styles.inputCompact
+                      : undefined,
+                  // With tokens, wrapperWithTokens reserves the lane for every row.
+                  // This rule is only for an empty Tokenizer; it still resolves to
+                  // zero until the lane publishes a width.
+                  !(isAtMax || isTruncated || value.length > 0) && laneReserve,
+                ]}
+              />
+            </BaseTypeaheadFocusContext>
           </CommittedChoicesKeyContext>
         </TrailingKeyDownContext>
       </BusyIndicatorLaneProvider>
