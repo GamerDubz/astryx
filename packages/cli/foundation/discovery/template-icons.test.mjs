@@ -18,6 +18,7 @@ import {glyphsData} from '../../test-utils/icon-set-fixture.mjs';
 const SET = /** @type {any} */ ({
   name: 'glyphs',
   package: '@acme/glyphs',
+  license: 'MIT',
   data: {
     ...glyphsData(),
     module: '@acme/glyphs',
@@ -91,13 +92,12 @@ describe('mapTemplateIcons', () => {
     BinGlyph: 'delete',
   };
 
-  it('rewrites each declared icon the set maps, every reference too, and keeps the rest', () => {
+  it("rewrites each declared icon the set maps, every reference too, and draws Core's placeholder for the rest", () => {
     const {source, icons} = map(SOURCE, DECLARED);
     expect(source).toContain(
-      "import {XIcon, HomeIcon, TrashIcon} from '@acme/glyphs';",
+      "import {XIcon, HomeIcon, TrashIcon} from '@acme/glyphs';\nimport {MissingIcon_experimental as PencilGlyph /* missing icon: edit */} from '@astryxdesign/core/Icon';",
     );
-    expect(source).toContain("import {PencilGlyph} from '@acme/library';");
-    expect(source).not.toContain('@acme/library/solid');
+    expect(source).not.toContain('@acme/library');
     expect(source).toContain('<XIcon className="x" />');
     expect(source).toContain('<HomeIcon />');
     expect(source).toContain('<PencilGlyph />');
@@ -116,12 +116,24 @@ describe('mapTemplateIcons', () => {
       ['HomeGlyph', 'HomeIcon', 'definition'],
       ['BinGlyph', 'TrashIcon', 'definition'],
     ]);
-    expect(icons.kept).toEqual([
-      expect.objectContaining({
-        module: '@acme/library',
-        export: 'PencilGlyph',
-        reason: expect.stringContaining('"edit"'),
-      }),
+    expect(icons.kept).toEqual([]);
+    expect(icons.placeholder).toEqual([
+      {
+        source: {module: '@acme/library', export: 'PencilGlyph'},
+        target: {
+          module: '@astryxdesign/core/Icon',
+          export: 'MissingIcon_experimental',
+          local: 'PencilGlyph',
+        },
+        definitions: ['edit'],
+        fixes: [
+          'astryx experimental icon map edit <icon> --set glyphs',
+          'astryx experimental icon use glyphs --backup <set>',
+        ],
+      },
+    ]);
+    expect(icons.sets).toEqual([
+      {set: '@acme/glyphs/glyphs', license: 'MIT', icons: 3},
     ]);
   });
 
@@ -146,14 +158,14 @@ describe('mapTemplateIcons', () => {
     expect(source).toContain('<XIcon className="x" />');
     expect(source).toMatch(/<XIcon\s*\/>/u);
     expect(source).not.toContain('absoluteStrokeWidth');
-    // A kept icon keeps its props.
-    expect(source).toContain('<PencilGlyph size={16} />');
+    // A placeholder takes its size from CSS too.
+    expect(source).toContain('<PencilGlyph />');
     expect(icons.mapped[0].dropped).toEqual([
       'absoluteStrokeWidth',
       'size',
       'strokeWidth',
     ]);
-    expect(icons.kept[0]).not.toHaveProperty('dropped');
+    expect(icons.placeholder[0].dropped).toEqual(['size']);
   });
 
   it('keeps comments inside and after a rewritten import line', () => {
@@ -172,9 +184,8 @@ describe('mapTemplateIcons', () => {
     expect(source).toContain('// tools');
     expect(source).toContain('// the home link');
     // Each comment is outside any code it would swallow.
-    expect(source).toContain(
-      "import {PencilGlyph /* pen */} from '@acme/library'; // tools",
-    );
+    expect(source).not.toContain("from '@acme/library'");
+    expect(source).toMatch(/^\/\/ tools$/mu);
     expect(source).toMatch(/^\/\/ the home link$/mu);
   });
 
@@ -227,7 +238,9 @@ describe('mapTemplateIcons', () => {
         set: null,
         reason: 'why',
         mapped: [],
+        placeholder: [],
         kept: [],
+        sets: [],
       });
     }
   });
@@ -314,17 +327,18 @@ describe('every binding form a declared key can name (FR10)', () => {
     expect(source).toContain("import {useThing} from '@acme/library';");
   });
 
-  it('a default import the set cannot map is kept', () => {
-    expect(
-      map(
-        "import PencilIcon from '@acme/library/pencil';\nexport const A = () => <PencilIcon />;\n",
-        {PencilIcon: 'edit'},
-      ).icons?.kept,
-    ).toEqual([
+  it("a default import the set cannot map draws Core's placeholder under its local name", () => {
+    const result = map(
+      "import PencilIcon from '@acme/library/pencil';\nexport const A = () => <PencilIcon />;\n",
+      {PencilIcon: 'edit'},
+    );
+    expect(result.source).toBe(
+      "import {MissingIcon_experimental as PencilIcon /* missing icon: edit */} from '@astryxdesign/core/Icon';\nexport const A = () => <PencilIcon />;\n",
+    );
+    expect(result.icons?.placeholder).toEqual([
       expect.objectContaining({
-        module: '@acme/library/pencil',
-        export: 'default',
-        reason: expect.stringContaining('"edit"'),
+        source: {module: '@acme/library/pencil', export: 'default'},
+        definitions: ['edit'],
       }),
     ]);
   });
@@ -556,5 +570,152 @@ describe('one key for a name imported from two modules (FR9)', () => {
     expect(source).toContain(
       "import {TrashIcon, TrashSolidIcon} from '@acme/glyphs';",
     );
+  });
+});
+
+describe('a main set with backups', () => {
+  const BRAND = /** @type {any} */ ({
+    name: 'brand',
+    package: '@acme/brand',
+    license: 'Apache-2.0',
+    data: {
+      schemaVersion: 1,
+      module: '@acme/brand',
+      default: {variant: 'outline'},
+      map: {close: 'cross', edit: 'pen', delete: 'bin'},
+      icons: [
+        {id: 'cross', export: 'CrossIcon', words: ['close']},
+        {id: 'pen', export: 'PenIcon', words: ['edit']},
+        {
+          id: 'bin',
+          export: 'BinIcon',
+          words: ['delete'],
+          variants: [{variant: 'solid', export: 'BinSolidIcon'}],
+        },
+      ],
+    },
+  });
+  /** @type {any} */
+  const ORDERED = {
+    status: 'selected',
+    set: SET,
+    configured: 'glyphs',
+    order: [SET, BRAND],
+    reason: 'list',
+  };
+  const SOURCE = [
+    "import {CloseGlyph, PencilGlyph, ScissorsGlyph} from '@acme/library';",
+    "import {Icon} from '@astryxdesign/core/Icon';",
+    '',
+    'export const A = () => <><Icon icon={CloseGlyph} /><Icon icon={PencilGlyph} /><Icon icon={ScissorsGlyph} /></>;',
+    '',
+  ].join('\n');
+  const DECLARED = {
+    CloseGlyph: 'close',
+    PencilGlyph: 'edit',
+    ScissorsGlyph: 'cut',
+  };
+
+  it('takes each icon from the first set in the list that has its meaning, and a placeholder when none has it', () => {
+    const {source, icons} = map(SOURCE, DECLARED, ORDERED, [SET, BRAND]);
+    // The main set has close; only the backup has edit; nobody has cut.
+    expect(source).toContain("import {XIcon} from '@acme/glyphs';");
+    expect(source).toContain("import {PenIcon} from '@acme/brand';");
+    expect(source).not.toContain('CrossIcon');
+    // The placeholder joins the file's own import of Core's Icon entry.
+    expect(source).toContain(
+      "import {Icon, MissingIcon_experimental as ScissorsGlyph /* missing icon: cut */} from '@astryxdesign/core/Icon';",
+    );
+    expect(source).not.toContain('@acme/library');
+    expect(source).toContain('<Icon icon={ScissorsGlyph} />');
+    expect(
+      icons?.mapped.map(each => [each.source.export, each.target.set]),
+    ).toEqual([
+      ['CloseGlyph', 'glyphs'],
+      ['PencilGlyph', 'brand'],
+    ]);
+    expect(icons?.order).toEqual(['@acme/glyphs/glyphs', '@acme/brand/brand']);
+    expect(icons?.placeholder.map(each => each.definitions)).toEqual([['cut']]);
+    expect(icons?.sets).toEqual([
+      {set: '@acme/glyphs/glyphs', license: 'MIT', icons: 1},
+      {set: '@acme/brand/brand', license: 'Apache-2.0', icons: 1},
+    ]);
+  });
+
+  it('with only a main set, an icon the main set lacks is a placeholder, never the original import', () => {
+    const {source, icons} = map(SOURCE, DECLARED);
+    expect(source).not.toContain('@acme/library');
+    expect(icons?.placeholder.map(each => each.source.export)).toEqual([
+      'PencilGlyph',
+      'ScissorsGlyph',
+    ]);
+  });
+
+  it('keeps the look a source asks for when the set has it, and reports the default look when it does not', () => {
+    const SOLID = /** @type {any} */ ({
+      name: 'solidlib',
+      package: '@acme/solidlib',
+      license: 'MIT',
+      data: {
+        schemaVersion: 1,
+        module: '@acme/solidlib',
+        variants: ['outline', 'solid'],
+        default: {variant: 'outline'},
+        map: {delete: 'trash', close: 'x'},
+        icons: [
+          {
+            id: 'trash',
+            export: 'TrashIcon',
+            words: ['delete'],
+            variants: [{variant: 'solid', export: 'TrashSolidIcon'}],
+          },
+          {
+            id: 'x',
+            export: 'XIcon',
+            words: ['close'],
+            variants: [{variant: 'solid', export: 'XSolidIcon'}],
+          },
+        ],
+      },
+    });
+    /** @type {any} */
+    const choice = {
+      status: 'selected',
+      set: BRAND,
+      configured: 'brand',
+      order: [BRAND],
+      reason: 'brand',
+    };
+    const {source, icons} = map(
+      "import {TrashSolidIcon, XSolidIcon} from '@acme/solidlib';\nexport const A = () => <><TrashSolidIcon /><XSolidIcon /></>;\n",
+      {},
+      choice,
+      [BRAND, SOLID],
+    );
+    // brand's bin has a solid look; its cross does not.
+    expect(source).toContain(
+      "import {BinSolidIcon, CrossIcon} from '@acme/brand';",
+    );
+    expect(icons?.mapped.map(each => each.variant)).toEqual([
+      undefined,
+      {asked: 'solid', used: 'outline'},
+    ]);
+  });
+
+  it('leaves an import from a backup set alone', () => {
+    const source =
+      "import {PenIcon} from '@acme/brand';\nexport const A = () => <PenIcon />;\n";
+    const {source: out, icons} = map(source, {PenIcon: 'edit'}, ORDERED, [
+      SET,
+      BRAND,
+    ]);
+    expect(out).toBe(source);
+    expect(icons?.kept).toEqual([
+      {
+        module: '@acme/brand',
+        export: 'PenIcon',
+        reason: 'it is already imported from a set in your list',
+      },
+    ]);
   });
 });

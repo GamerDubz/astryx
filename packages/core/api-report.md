@@ -1586,6 +1586,8 @@ component MetadataListItem(props: MetadataListItemProps)
   prop ref?: React.Ref<HTMLDivElement>
   prop xstyle?: StyleXStyles
   inherits AriaAttributes, DOMAttributes, HTMLAttributes
+component MissingIcon_experimental(props: MissingIconProps) @experimental
+  inherits AriaAttributes, Attributes, DOMAttributes, RefAttributes, SVGAttributes
 component MobileNav(props: MobileNavProps)
   prop children: ReactNode
   prop data-testid?: string
@@ -4855,6 +4857,7 @@ interface MetadataListLabelConfig
   position?: 'start' | 'top'
   width?: number | string
 interface MetadataListProps extends Omit<BaseProps<HTMLDivElement>, 'title'> (props of MetadataList)
+type MissingIconProps = SVGProps<SVGSVGElement> (props of MissingIcon_experimental)
 interface MobileNavConfig
   breakpoint?: AppShellBreakpoint = 'md'
   content?: ReactNode
@@ -7219,6 +7222,8 @@ IconSize (.)
 IconType (.)
 IconVariant (.)
 IconVariantMap (.)
+MissingIconProps (.)
+MissingIcon_experimental (.)
 NamespacedIconName (.)
 getExtendedIcon (.)
 getIcon (.)

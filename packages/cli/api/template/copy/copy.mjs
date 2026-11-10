@@ -100,8 +100,9 @@ export function templateCopy(
     demoContentReplaced,
     demoMediaReplaced,
   } = replaceTemplateDemos(fs.readFileSync(match.filePath, 'utf-8'));
-  // Icons follow the project's icon set (AST-084 FR9). An icon with no match
-  // keeps its import, so its library stays a needed dependency below.
+  // Icons follow the project's icon set and its backups (AST-084 FR9). An
+  // icon no set in the list has draws Core's placeholder, so the library the
+  // template imported it from is no longer a needed dependency below.
   const {source: outputSource, icons} = mapTemplateIcons(
     withMedia,
     iconSets,

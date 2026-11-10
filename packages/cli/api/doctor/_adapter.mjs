@@ -39,6 +39,10 @@ import {
 } from '../../foundation/agent-docs/computer-agent-text.mjs';
 import {computerAgentTextSettings} from '../../foundation/env/user-settings.mjs';
 import * as fs from 'node:fs';
+import {
+  PLACEHOLDER_ICON,
+  placeholderMeanings,
+} from '../../foundation/discovery/template-icons.mjs';
 import {elementPropOrigins} from '../../foundation/discovery/module-exports.mjs';
 import {cssImports} from '../../foundation/render/embedded-imports.mjs';
 import * as path from 'node:path';
@@ -148,6 +152,46 @@ export function listProjectSourceFiles(root, generatedModule, options = {}) {
     }
   }
   return files;
+}
+
+/**
+ * Each import of Core's placeholder icon in the project's own source: the
+ * file, the local name, and the meanings its comment records (null when it
+ * records none). Read without executing app code.
+ * @param {string} projectDir
+ * @returns {Array<{file: string, local: string, meanings: string[] | null}>}
+ */
+export function findIconPlaceholders(projectDir) {
+  /** @type {Array<{file: string, local: string, meanings: string[] | null}>} */
+  const found = [];
+  const importRe =
+    /import\s*\{([^}]*)\}\s*from\s*['"]@astryxdesign\/core(?:\/Icon)?['"]/gu;
+  const specifierRe = new RegExp(
+    `\\b${PLACEHOLDER_ICON.export}\\b(?:\\s+as\\s+([\\w$]+))?(?:\\s*(\\/\\*[^]*?\\*\\/))?`,
+    'gu',
+  );
+  for (const file of listProjectSourceFiles(projectDir, '')) {
+    let source;
+    try {
+      source = readTextFile(file);
+    } catch {
+      continue;
+    }
+    if (!source.includes(PLACEHOLDER_ICON.export)) continue;
+    const shown = path.relative(projectDir, file).split(path.sep).join('/');
+    for (const match of source.matchAll(importRe)) {
+      for (const each of match[1].matchAll(specifierRe)) {
+        found.push({
+          file: shown,
+          local: each[1] ?? PLACEHOLDER_ICON.export,
+          meanings: each[2] ? placeholderMeanings(each[2]) : null,
+        });
+      }
+    }
+  }
+  return found.sort(
+    (a, b) => a.file.localeCompare(b.file) || a.local.localeCompare(b.local),
+  );
 }
 
 /** @param {string} projectDir */

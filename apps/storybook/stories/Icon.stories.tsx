@@ -1,7 +1,12 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import type {Meta, StoryObj} from '@storybook/react';
-import {Icon, getIconRegistry, type IconName} from '@astryxdesign/core/Icon';
+import {
+  Icon,
+  MissingIcon_experimental,
+  getIconRegistry,
+  type IconName,
+} from '@astryxdesign/core/Icon';
 import {HStack, VStack} from '@astryxdesign/core/Layout';
 import {Text} from '@astryxdesign/core/Text';
 import {
@@ -97,6 +102,20 @@ export const AccessibleName: Story = {
         <Icon icon={HomeIcon} color="secondary" size="lg" />
         <Text type="supporting">Decorative (no label)</Text>
       </VStack>
+    </HStack>
+  ),
+};
+
+/**
+ * The experimental placeholder for an icon no icon set has: a dashed square
+ * that takes the icon's size and color.
+ */
+export const MissingIconPlaceholder: Story = {
+  render: () => (
+    <HStack gap={4}>
+      <Icon icon={MissingIcon_experimental} size="sm" />
+      <Icon icon={MissingIcon_experimental} size="md" />
+      <Icon icon={MissingIcon_experimental} size="lg" color="secondary" />
     </HStack>
   ),
 };

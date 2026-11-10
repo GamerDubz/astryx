@@ -82,6 +82,9 @@ async function gatherCoreComponents(coreDir) {
       // indexed from its own entry: the family's keywords and guidance
       // describe the family, not the member.
       const doc = familyMember(loaded, comp) ?? loaded;
+      // An experimental component (spec:AST-017 FR27) is never a search
+      // result: `astryx component <Name>` reads it on its own route.
+      if (doc?.stability === 'experimental') continue;
       if (doc) {
         keywords = Array.isArray(doc.keywords) ? doc.keywords : [];
         description = doc.usage?.description || doc.description || '';

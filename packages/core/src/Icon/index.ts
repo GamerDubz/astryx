@@ -5,7 +5,8 @@
 /**
  * @file index.ts
  * @input Imports Icon component/types, icon registry, and global registration
- * @output Exports Icon, icon registry helpers, registerIcons, getIconRegistry, getIcon,
+ * @output Exports Icon, the experimental MissingIcon_experimental placeholder,
+ *   icon registry helpers, registerIcons, getIconRegistry, getIcon,
  *   the IconEntry/IconRequest types for theme and registered entries, the
  *   augmentable IconVariantMap with its IconVariant names, and the augmentable
  *   ComponentIconSlotMap with the types of a theme's `componentIcons`
@@ -121,6 +122,8 @@ export type ComponentIconStaticMap = Partial<
 >;
 
 export {Icon, renderIconSlot} from './Icon';
+export {MissingIcon_experimental} from './MissingIcon_experimental';
+export type {MissingIconProps} from './MissingIcon_experimental';
 export {useIcon} from './useIcon';
 export type {IconProps, IconColor, IconSize, IconType} from './Icon';
 
