@@ -813,6 +813,11 @@
       "aliases": []
     },
     {
+      "name": "component-missing-icon-experimental",
+      "path": "components/missing-icon-experimental",
+      "aliases": []
+    },
+    {
       "name": "component-mobile-nav",
       "path": "components/mobile-nav",
       "aliases": []
